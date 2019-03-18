@@ -97,7 +97,7 @@ set linebreak
 set number
 
 syntax on
-set mouse=a
+set mouse=r
 
 filetype plugin indent on
 
@@ -111,8 +111,8 @@ set background=dark
 set expandtab
 set smarttab
 set shiftwidth=2
-set softtabstop=2
-set tabstop=2
+set softtabstop=4
+set tabstop=4
 set wildignore=*.pyc
 set ignorecase
 set smartcase
@@ -121,8 +121,7 @@ set incsearch
 set shiftround
 set history=1000
 set undolevels=1000
-set noswapfile
-set nobackup
+set undofile
 set number
 set linespace=3
 set backspace=indent,eol,start
