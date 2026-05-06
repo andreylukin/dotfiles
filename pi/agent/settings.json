@@ -1,0 +1,6 @@
+{
+  "defaultModel": "claude-opus-4-7",
+  "defaultProvider": "anthropic",
+  "packages": [],
+  "lastChangelogVersion": "0.73.0"
+}

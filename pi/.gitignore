@@ -1,0 +1,16 @@
+*
+!.gitignore
+!agent/
+!agent/AGENTS.md
+!agent/settings.json
+!agent/skills/
+!agent/skills/**
+!agent/extensions/
+!agent/extensions/**
+!agents/
+!agents/skills/
+!agents/skills/**
+
+# Re-exclude skill runtime caches/state
+**/sessions/
+**/sessions/**
