@@ -1,0 +1,21 @@
+{
+  "name": "@permissions/extension",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "@mariozechner/pi-tui": "*",
+    "@permissions/local-model": "*",
+    "web-tree-sitter": "^0.25.0"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "^0.73.0",
+    "@permissions/shared": "*"
+  }
+}

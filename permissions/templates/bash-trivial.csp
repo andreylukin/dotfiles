@@ -1,0 +1,10 @@
+@name("bash-trivial")
+permit (action == "bash:^ls$");
+permit (action == "bash:^ls -[a-zA-Z]+$");
+permit (action == "bash:^pwd$");
+permit (action == "bash:^echo [^;|&$]*$");
+permit (action == "bash:^cat [^;|&$]+$");
+permit (action == "bash:^git status$");
+permit (action == "bash:^git status -[a-zA-Z]+$");
+permit (action == "bash:^true$");
+permit (action == "bash:^false$");

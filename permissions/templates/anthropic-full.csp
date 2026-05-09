@@ -1,0 +1,3 @@
+@name("anthropic-full")
+permit (action == "net:*:api.anthropic.com/**");
+permit (action == "net:*:api.anthropic.com");

@@ -1,0 +1,13 @@
+{
+  "name": "@permissions/spike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "eval": "jiti src/eval.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mariozechner/jiti": "*"
+  }
+}

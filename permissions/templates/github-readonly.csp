@@ -1,0 +1,5 @@
+@name("github-readonly")
+permit (action == "net:GET:api.github.com/**");
+permit (action == "net:GET:raw.githubusercontent.com/**");
+permit (action == "net:GET:objects.githubusercontent.com/**");
+permit (action == "net:GET:github.com/**");

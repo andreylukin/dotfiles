@@ -1,9 +1,12 @@
 {
-  "defaultProvider": "ollama",
-  "defaultModel": "qwen3.6",
-  "defaultThinkingLevel": "low",
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-4-7",
+  "defaultThinkingLevel": "high",
   "enabledModels": [
     "qwen3.6"
   ],
-  "lastChangelogVersion": "0.73.0"
+  "lastChangelogVersion": "0.73.0",
+  "packages": [
+    "npm:pi-lens"
+  ]
 }

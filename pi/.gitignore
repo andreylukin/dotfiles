@@ -14,3 +14,7 @@
 # Re-exclude skill runtime caches/state
 **/sessions/
 **/sessions/**
+
+# Re-exclude node_modules (created as a symlink by dotfiles' postinstall)
+**/node_modules/
+**/node_modules/**

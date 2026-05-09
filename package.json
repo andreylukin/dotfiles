@@ -1,0 +1,22 @@
+{
+  "name": "dotfiles",
+  "private": true,
+  "workspaces": [
+    "permissions/cli",
+    "permissions/shared",
+    "permissions/local-model",
+    "permissions/spike",
+    "pi/agent/extensions/permissions"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces",
+    "build": "npm --workspace @permissions/shared run build && npm --workspace @permissions/cli run build",
+    "link-extension-deps": "ln -sfn \"$(pwd)/node_modules\" pi/agent/extensions/permissions/node_modules",
+    "link-bins": "sh permissions/scripts/install-bins.sh",
+    "postinstall": "npm run build && npm run link-extension-deps && npm run link-bins"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
