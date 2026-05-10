@@ -1,0 +1,74 @@
+@name("pi-base")
+
+// Read-only access to public package registries used by pi-mono itself
+// (self-update check on startup) and the pi-lens extension (which shells
+// out to language package managers — npm, pip, go, cargo, … — for version
+// info on startup and during dependency checks).
+//
+// Scope: GET only. Writes (publish, login) still prompt.
+
+// pi-mono self-update check
+permit (action == "net:GET:pi.dev/api/latest-version");
+
+// JavaScript / TypeScript — package metadata only.
+//   /<pkg>          → unscoped (e.g. /express)
+//   /@<scope>/<pkg> → scoped   (e.g. /@types/node)
+// Excluded: tarballs (/<pkg>/-/<file>.tgz) and search (/-/v1/search). If a
+// tool legitimately needs those, add narrower rules.
+permit (action == "net:GET:registry.npmjs.org/*");
+permit (action == "net:GET:registry.npmjs.org/@*/*");
+permit (action == "net:HEAD:registry.npmjs.org/*");
+permit (action == "net:HEAD:registry.npmjs.org/@*/*");
+permit (action == "net:GET:registry.yarnpkg.com/*");
+permit (action == "net:GET:registry.yarnpkg.com/@*/*");
+permit (action == "net:HEAD:registry.yarnpkg.com/*");
+permit (action == "net:HEAD:registry.yarnpkg.com/@*/*");
+
+// Python
+permit (action == "net:GET:pypi.org/**");
+permit (action == "net:GET:files.pythonhosted.org/**");
+
+// Go
+permit (action == "net:GET:proxy.golang.org/**");
+permit (action == "net:GET:sum.golang.org/**");
+permit (action == "net:GET:pkg.go.dev/**");
+
+// Rust
+permit (action == "net:GET:crates.io/**");
+permit (action == "net:GET:index.crates.io/**");
+permit (action == "net:GET:static.crates.io/**");
+
+// .NET
+permit (action == "net:GET:api.nuget.org/**");
+
+// Ruby
+permit (action == "net:GET:rubygems.org/**");
+permit (action == "net:GET:index.rubygems.org/**");
+
+// PHP
+permit (action == "net:GET:repo.packagist.org/**");
+permit (action == "net:GET:packagist.org/**");
+
+// Java / Kotlin
+permit (action == "net:GET:repo1.maven.org/**");
+permit (action == "net:GET:repo.maven.apache.org/**");
+
+// Elixir
+permit (action == "net:GET:hex.pm/**");
+permit (action == "net:GET:repo.hex.pm/**");
+
+// GitHub: release assets pi-lens uses for tool installs (madge, hashicorp,
+// etc.) and the API for repo metadata. Read-only.
+permit (action == "net:GET:api.github.com/**");
+permit (action == "net:GET:github.com/**");
+permit (action == "net:GET:raw.githubusercontent.com/**");
+permit (action == "net:GET:objects.githubusercontent.com/**");
+permit (action == "net:GET:codeload.github.com/**");
+
+// Misc tool hosts pi-lens references in source.
+permit (action == "net:GET:releases.hashicorp.com/**");
+permit (action == "net:GET:biomejs.dev/**");
+permit (action == "net:GET:knip.dev/**");
+permit (action == "net:GET:docs.astral.sh/**");
+permit (action == "net:GET:dart.dev/**");
+permit (action == "net:GET:doc.rust-lang.org/**");
