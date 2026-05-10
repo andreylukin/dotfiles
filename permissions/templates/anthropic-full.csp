@@ -1,3 +1,6 @@
 @name("anthropic-full")
 permit (action == "net:*:api.anthropic.com/**");
 permit (action == "net:*:api.anthropic.com");
+// OAuth token refresh — without this, expired tokens fail silently and
+// the model becomes "unreachable" mid-session.
+permit (action == "net:*:platform.claude.com/v1/oauth/token");

@@ -1,12 +1,8 @@
 {
   "defaultProvider": "anthropic",
   "defaultModel": "claude-opus-4-7",
-  "defaultThinkingLevel": "high",
-  "enabledModels": [
-    "qwen3.6"
-  ],
+  "defaultThinkingLevel": "off",
+  "enabledModels": [],
   "lastChangelogVersion": "0.73.0",
-  "packages": [
-    "npm:pi-lens"
-  ]
+  "packages": ["npm:pi-lens"]
 }

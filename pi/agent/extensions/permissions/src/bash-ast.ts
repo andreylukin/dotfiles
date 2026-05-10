@@ -2,7 +2,6 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Language, Parser } from "web-tree-sitter";
 import { netAction } from "./policy.js";
-import { extractPythonDangers } from "./python-ast.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WASM_PATH = path.join(HERE, "tree-sitter-bash.wasm");
@@ -30,6 +29,128 @@ export interface ExtractResult {
 	actions: ExtractedAction[];
 }
 
+/**
+ * Per-binary set of script-from-string flags. Any command node whose binary
+ * matches the key and whose args contain any of the flags is an inline script —
+ * we auto-sandbox the invocation rather than refuse.
+ */
+const INLINE_INTERPRETER_FLAGS: {
+	binary: RegExp;
+	flags: Set<string>;
+	language: "python" | "node" | "bash";
+	label: string;
+}[] = [
+	{ binary: /^(python|python2|python3|python3\.\d+)$/, flags: new Set(["-c"]), language: "python", label: "python -c" },
+	{ binary: /^(node|nodejs)$/, flags: new Set(["-e", "--eval", "-p", "--print"]), language: "node", label: "node -e" },
+	{ binary: /^(bash|sh|zsh|ksh|dash)$/, flags: new Set(["-c"]), language: "bash", label: "shell -c" },
+];
+
+/**
+ * Bare binaries that take their script as the next positional arg with no
+ * explicit flag — there's no source body to sandbox separately, so we still
+ * refuse these.
+ */
+const REFUSE_BARE_BINARIES: { match: RegExp; label: string }[] = [
+	{ match: /^eval$/, label: "eval" },
+	{ match: /^source$/, label: "source" },
+	{ match: /^\.$/, label: "." },
+];
+
+export interface InlineScript {
+	startIndex: number;
+	endIndex: number;
+	originalText: string;
+	language: "python" | "node" | "bash";
+	label: string;
+	flag: string;
+	source: string;
+}
+
+async function parseTree(command: string): Promise<import("web-tree-sitter").Tree | null> {
+	try {
+		const p = await getParser();
+		return p.parse(command);
+	} catch {
+		return null;
+	}
+}
+
+function collectCommandNodes(tree: import("web-tree-sitter").Tree): import("web-tree-sitter").Node[] {
+	const out: import("web-tree-sitter").Node[] = [];
+	const walk = (node: import("web-tree-sitter").Node): void => {
+		if (node.type === "command") out.push(node);
+		for (let i = 0; i < node.namedChildCount; i++) {
+			const c = node.namedChild(i);
+			if (c) walk(c);
+		}
+	};
+	walk(tree.rootNode);
+	return out;
+}
+
+/**
+ * Refuse only bare `eval` / `source` / `.` — there's no isolable source body
+ * to sandbox for those shapes. Inline interpreter calls (`python -c`, etc.)
+ * are handled by `findInlineScripts` and auto-sandboxed instead.
+ */
+export async function findRefusedShape(command: string): Promise<string | null> {
+	const tree = await parseTree(command);
+	if (!tree) return null;
+	for (const node of collectCommandNodes(tree)) {
+		const name = node.childForFieldName("name")?.text;
+		if (!name) continue;
+		for (const bare of REFUSE_BARE_BINARIES) {
+			if (bare.match.test(name)) return bare.label;
+		}
+	}
+	return null;
+}
+
+/**
+ * Walk the bash AST and collect every inline-interpreter invocation (e.g.
+ * `python3 -c "..."`, `node -e "..."`). Each result carries the byte range of
+ * the command node so the caller can splice in `sandbox-exec -f <profile>`
+ * before execution. Covers shapes inside pipes, `&&`/`||`, `;`, `$(...)`, etc.
+ */
+export async function findInlineScripts(command: string): Promise<InlineScript[]> {
+	const tree = await parseTree(command);
+	if (!tree) return [];
+	const out: InlineScript[] = [];
+	for (const node of collectCommandNodes(tree)) {
+		const nameNode = node.childForFieldName("name");
+		const name = nameNode?.text;
+		if (!name) continue;
+
+		const argNodes: import("web-tree-sitter").Node[] = [];
+		for (let i = 0; i < node.namedChildCount; i++) {
+			const c = node.namedChild(i);
+			if (c && c.type !== "command_name") argNodes.push(c);
+		}
+		for (const rule of INLINE_INTERPRETER_FLAGS) {
+			if (!rule.binary.test(name)) continue;
+			for (let j = 0; j < argNodes.length; j++) {
+				const flagText = argNodes[j].text;
+				if (!rule.flags.has(flagText)) continue;
+				const srcNode = argNodes[j + 1];
+				if (!srcNode) continue;
+				const source = literalString(srcNode);
+				if (source === null) continue;
+				out.push({
+					startIndex: node.startIndex,
+					endIndex: node.endIndex,
+					originalText: node.text,
+					language: rule.language,
+					label: rule.label,
+					flag: flagText,
+					source,
+				});
+				break;
+			}
+		}
+	}
+	return out;
+}
+
 export async function extractActions(command: string): Promise<ExtractResult> {
 	const p = await getParser();
 	const tree = p.parse(command);
@@ -48,129 +169,6 @@ export async function extractActions(command: string): Promise<ExtractResult> {
 	};
 	visit(tree.rootNode);
 	return { actions };
-}
-
-export interface Segment {
-	text: string;
-	kind: "shell" | "python";
-	depth: number;
-	/** For shell segments wrapping `python -c '<src>'`: byte offsets of <src> within `text`. Used to splice highlighted python into the displayed segment. */
-	pythonBodyRange?: { start: number; end: number };
-}
-
-const MAX_DEPTH = 4;
-
-export async function extractSegments(command: string): Promise<Segment[]> {
-	const trimmed = command.trim();
-	if (!trimmed) return [];
-	const out: Segment[] = [];
-	await extractSegmentsRec(trimmed, 0, out);
-	if (out.length === 0) out.push({ text: trimmed, kind: "shell", depth: 0 });
-	return out;
-}
-
-async function extractSegmentsRec(command: string, depth: number, out: Segment[]): Promise<void> {
-	if (depth > MAX_DEPTH) {
-		out.push({ text: command, kind: "shell", depth });
-		return;
-	}
-	let tree: import("web-tree-sitter").Tree | null = null;
-	try {
-		const p = await getParser();
-		tree = p.parse(command);
-	} catch {
-		out.push({ text: command, kind: "shell", depth });
-		return;
-	}
-	if (!tree) {
-		out.push({ text: command, kind: "shell", depth });
-		return;
-	}
-
-	const commandNodes: import("web-tree-sitter").Node[] = [];
-	const collect = (node: import("web-tree-sitter").Node): void => {
-		if (node.type === "command") commandNodes.push(node);
-		for (let i = 0; i < node.namedChildCount; i++) {
-			const child = node.namedChild(i);
-			if (child) collect(child);
-		}
-	};
-	collect(tree.rootNode);
-
-	for (const node of commandNodes) {
-		const rawText = node.text;
-		const trimmed = rawText.trim();
-		if (!trimmed) continue;
-		const leading = rawText.length - rawText.trimStart().length;
-
-		const shellInner = getInterpreterArg(node, ["bash", "sh"]);
-		if (shellInner !== null) {
-			out.push({ text: trimmed, kind: "shell", depth });
-			await extractSegmentsRec(shellInner.src, depth + 1, out);
-			continue;
-		}
-		const pythonInner = getInterpreterArg(node, /^python[0-9.]*$/);
-		if (pythonInner !== null) {
-			out.push({
-				text: trimmed,
-				kind: "shell",
-				depth,
-				pythonBodyRange: {
-					start: pythonInner.bodyRange.start - leading,
-					end: pythonInner.bodyRange.end - leading,
-				},
-			});
-			const dangers = await extractPythonDangers(pythonInner.src);
-			for (const d of dangers) {
-				out.push({ text: d, kind: "python", depth: depth + 1 });
-			}
-			continue;
-		}
-		out.push({ text: trimmed, kind: "shell", depth });
-	}
-}
-
-interface InterpreterArg {
-	src: string;
-	/** Byte offsets of the literal string content within the outer command's text. */
-	bodyRange: { start: number; end: number };
-}
-
-function getInterpreterArg(
-	node: import("web-tree-sitter").Node,
-	matcher: string[] | RegExp,
-): InterpreterArg | null {
-	const name = node.childForFieldName("name")?.text;
-	if (!name) return null;
-	const matches = Array.isArray(matcher) ? matcher.includes(name) : matcher.test(name);
-	if (!matches) return null;
-
-	const args: import("web-tree-sitter").Node[] = [];
-	for (let i = 0; i < node.namedChildCount; i++) {
-		const c = node.namedChild(i);
-		if (c && c.type !== "command_name") args.push(c);
-	}
-	for (let i = 0; i < args.length - 1; i++) {
-		if (args[i].text === "-c") {
-			const argNode = args[i + 1];
-			const src = literalString(argNode);
-			if (src === null) return null;
-			let absStart = argNode.startIndex;
-			let absEnd = argNode.endIndex;
-			if (argNode.type === "string" || argNode.type === "raw_string") {
-				absStart += 1; // skip opening quote
-				absEnd -= 1; // skip closing quote
-			}
-			return {
-				src,
-				bodyRange: {
-					start: absStart - node.startIndex,
-					end: absEnd - node.startIndex,
-				},
-			};
-		}
-	}
-	return null;
 }
 
 function handleCommand(node: import("web-tree-sitter").Node): ExtractedAction | null {

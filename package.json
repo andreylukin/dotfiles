@@ -4,8 +4,6 @@
   "workspaces": [
     "permissions/cli",
     "permissions/shared",
-    "permissions/local-model",
-    "permissions/spike",
     "pi/agent/extensions/permissions"
   ],
   "scripts": {

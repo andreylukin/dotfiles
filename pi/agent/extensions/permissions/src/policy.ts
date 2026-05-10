@@ -4,7 +4,7 @@
 // from @permissions/shared still work (TS erases them); only runtime values
 // need to live here.
 
-import { globToRegex } from "@permissions/local-model";
+import { globToRegex } from "./net-model.js";
 import type { Rule, Policy, DecisionResult } from "@permissions/shared";
 
 export function netAction(method: string, host: string, pathAndQuery: string): string {

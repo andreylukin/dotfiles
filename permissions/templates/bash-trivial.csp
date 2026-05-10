@@ -8,3 +8,13 @@ permit (action == "bash:^git status$");
 permit (action == "bash:^git status -[a-zA-Z]+$");
 permit (action == "bash:^true$");
 permit (action == "bash:^false$");
+
+// Strongly-clamped script capabilities. fs=read-only blocks all writes;
+// fs=rw-tmp confines writes to a per-call scratch dir (rm'd after); net=none
+// blocks all egress at the kernel level. No reason to prompt for these.
+permit (action == "script:lang=python:fs=read-only:net=none");
+permit (action == "script:lang=node:fs=read-only:net=none");
+permit (action == "script:lang=bash:fs=read-only:net=none");
+permit (action == "script:lang=python:fs=rw-tmp:net=none");
+permit (action == "script:lang=node:fs=rw-tmp:net=none");
+permit (action == "script:lang=bash:fs=rw-tmp:net=none");

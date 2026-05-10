@@ -7,6 +7,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLED = path.resolve(HERE, "..", "..", "templates");
 const USER = path.join(os.homedir(), ".permissions", "templates");
 
+export function bundledTemplatesDir(): string {
+	return BUNDLED;
+}
+
 export async function resolveTemplatePath(name: string): Promise<string> {
 	const filename = `${name}.csp`;
 	const userPath = path.join(USER, filename);

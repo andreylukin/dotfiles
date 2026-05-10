@@ -44,24 +44,12 @@ export async function startProxy(opts: ProxyOptions = {}): Promise<ProxyHandle> 
 
 	await server.forAnyRequest().thenPassThrough({
 		beforeRequest: async (req) => {
-			const ts = new Date().toISOString();
-			if (!enforce) {
-				console.log(`${ts} ${req.method} ${req.url} → no-enforce`);
-				return {};
-			}
+			if (!enforce) return {};
 			const url = new URL(req.url);
 			const action = netAction(req.method, url.hostname, url.pathname + url.search);
 			const result = evaluate(action, policies);
 
 			if (result.decision === "deny" && result.matchedRule?.effect === "forbid") {
-				const tag = formatAuditTag({
-					decision: "deny",
-					source: "rule",
-					matchedPattern: result.matchedRule.pattern,
-					matchedPolicy: result.matchedPolicy,
-					matchedEffect: "forbid",
-				});
-				console.log(`${ts} ${req.method} ${req.url} → ${tag}`);
 				ipc?.audit({
 					action,
 					decision: "deny",
@@ -72,14 +60,6 @@ export async function startProxy(opts: ProxyOptions = {}): Promise<ProxyHandle> 
 				return forbidResponse(result.reason);
 			}
 			if (result.decision === "allow") {
-				const tag = formatAuditTag({
-					decision: "allow",
-					source: "rule",
-					matchedPattern: result.matchedRule?.pattern,
-					matchedPolicy: result.matchedPolicy,
-					matchedEffect: "permit",
-				});
-				console.log(`${ts} ${req.method} ${req.url} → ${tag}`);
 				ipc?.audit({
 					action,
 					decision: "allow",
@@ -89,10 +69,7 @@ export async function startProxy(opts: ProxyOptions = {}): Promise<ProxyHandle> 
 				});
 				return {};
 			}
-			if (!ipc) {
-				console.log(`${ts} ${req.method} ${req.url} → deny [default-deny: no ipc connected]`);
-				return forbidResponse("default deny");
-			}
+			if (!ipc) return forbidResponse("default deny");
 
 			try {
 				const reply = await ipc.query({ action });
@@ -102,13 +79,10 @@ export async function startProxy(opts: ProxyOptions = {}): Promise<ProxyHandle> 
 						pattern: reply.addRule.pattern,
 					});
 				}
-				const tag = formatUserDecisionTag(reply);
-				console.log(`${ts} ${req.method} ${req.url} → ${tag}`);
 				if (reply.decision === "allow") return {};
 				return forbidResponse("user denied");
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				console.log(`${ts} ${req.method} ${req.url} → deny [ipc-error: ${msg}]`);
 				return forbidResponse(`extension error: ${msg}`);
 			}
 		},
@@ -142,34 +116,3 @@ function forbidResponse(reason: string) {
 	};
 }
 
-interface AuditTagFields {
-	decision: "allow" | "deny";
-	source: "rule";
-	matchedPattern?: string;
-	matchedPolicy?: string;
-	matchedEffect?: "permit" | "forbid";
-}
-
-/** Renders a structured log tag for proxy decisions made without prompting the user. */
-function formatAuditTag(f: AuditTagFields): string {
-	const policy = f.matchedPolicy ? `policy=${f.matchedPolicy}` : "policy=(unnamed)";
-	const pattern = f.matchedPattern ? `match=${f.matchedPattern}` : "match=(unknown)";
-	const effect = f.matchedEffect ? `effect=${f.matchedEffect}` : "";
-	const parts = [f.decision, `[rule]`, policy, pattern, effect].filter(Boolean);
-	return parts.join(" ");
-}
-
-interface UserDecisionTagFields {
-	decision: "allow" | "deny";
-	attribution: string;
-	addRule?: { effect: "permit" | "forbid"; pattern: string };
-}
-
-/** Renders a structured log tag for proxy decisions made via user prompt. */
-function formatUserDecisionTag(f: UserDecisionTagFields): string {
-	const attribution = `attribution=${f.attribution}`;
-	const ruleAdded = f.addRule
-		? `+${f.addRule.effect}=${f.addRule.pattern}`
-		: "rule-added=none";
-	return [f.decision, "[user]", attribution, ruleAdded].join(" ");
-}

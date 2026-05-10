@@ -10,8 +10,8 @@
     "extensions": ["./index.ts"]
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-tui": "*",
-    "@permissions/local-model": "*",
     "web-tree-sitter": "^0.25.0"
   },
   "devDependencies": {

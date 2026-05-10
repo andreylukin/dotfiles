@@ -7,6 +7,7 @@ export interface ChildOptions {
 	bundlePath: string;   // proxy CA + system roots — for vars that REPLACE default trust
 	proxyUrl: string;
 	profilePath: string;
+	bundledTemplatesDir: string;
 }
 
 export function spawnPi(opts: ChildOptions): ChildProcess {
@@ -21,6 +22,7 @@ export function spawnPi(opts: ChildOptions): ChildProcess {
 		REQUESTS_CA_BUNDLE: opts.bundlePath,
 		SSL_CERT_FILE: opts.bundlePath,
 		PI_PERMISSIONS_SOCK: opts.socketPath,
+		PI_PERMISSIONS_BUNDLED_TEMPLATES_DIR: opts.bundledTemplatesDir,
 	};
 
 	return spawn("sandbox-exec", ["-f", opts.profilePath, "pi", ...opts.args], {
